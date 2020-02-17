@@ -1,4 +1,4 @@
-const utils = require('utils');
+const utils = require('./utils');
 
 class Endpoint {
   /**
@@ -11,7 +11,6 @@ class Endpoint {
    * @param tags {string[]}
    */
   constructor(spec, operationId, method, path, summary, description, tags) {
-    this.spec = spec;
     this.doc = {
       operationId,
       tags,
@@ -21,21 +20,40 @@ class Endpoint {
       responses: {},
       security: [],
     };
-    this.error = null;
+    /** @type {OpenAPI} */
+    this.spec = spec;
+    /** @type {string} */
     this.path = path;
-    this.method = method;
+    /** @type {string} */
+    this.method = method.toLowerCase();
+    /** @type {Object} */
     this.options = {};
-    this.endpointVersion = 0;
-    this.bodyJsonschema = null;
-    this.responseSchemas = {};
-    this.query = [];
-    this.params = [];
-    this.headers = [];
-    this.userDefinedFunc = () => {
+    /** @type {function(data:Data):*} */
+    this.userDefinedFunc = data => {
       throw new Error(`endpoint function is not defined for ${this.doc.operationId}`);
     };
-    this.fullyWrappedFunc = null;
-    spec.endpoints.push(this);
+
+    /** @private */
+    this._endpointVersion = 0;
+    /** @private */
+    this._bodyJsonschema = null;
+    /** @private */
+    this._dataSchema = {};
+    /** @private */
+    this._responseSchemas = {};
+    /** @private */
+    this._query = [];
+    /** @private */
+    this._params = [];
+    /** @private */
+    this._headers = [];
+    /** @private */
+    this._fullyWrappedFunc = data => this.userDefinedFunc(data);
+
+    if(spec.endpoints[operationId] !== undefined) {
+      throw new Error(`duplicate endpoint definition for operationId: ${operationId}`);
+    }
+    spec.endpoints[operationId] = this;
   }
 
   /**
@@ -55,10 +73,10 @@ class Endpoint {
    * @returns {Endpoint}
    */
   version(v) {
-    if(v <= 0 || this.endpointVersion) {
+    if(v <= 0 || this._endpointVersion) {
       return this;
     }
-    this.endpointVersion = v;
+    this._endpointVersion = v;
     this.doc.operationId += `_v${v}`;
     this.path = `/v${v}${this.path}`;
     return this;
@@ -76,28 +94,31 @@ class Endpoint {
    */
   parameter(loc, name, description, required, schema, type) {
     if(type !== 'string' && type !== 'number' && type !== 'bool') {
-      this.error = new Error(`invalid type for parameter ${name} in ${loc} of ${this.doc.operationId}`);
-      return this;
+      throw new Error(`invalid type for parameter ${name} in ${loc} of ${this.doc.operationId} (must be one of {string,number,bool})`);
     }
-    utils.schemaRefObjectReplace(schema, this.spec.schemaObjectsToNames);
-    const doc = {name, description, in: loc, required, schema};
+    utils.schemaReplaceObjectRefsInPlace(schema, this.spec._schemaObjectsToNames);
+    const doc = {
+      name,
+      description,
+      in: loc,
+      required,
+      schema: utils.schemaRefReplace(schema, utils.refNameToSwaggerRef)
+    };
     const typedDoc = {doc, type, jsonschema: utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef)};
 
-    this.doc.parameters.push(utils.schemaRefReplace(schema, utils.refNameToSwaggerRef));
+    this.doc.parameters.push(doc);
     switch(loc) {
       case 'query':
-        this.query.push(typedDoc);
+        this._query.push(typedDoc);
         break;
       case 'path':
-        this.params.push(typedDoc);
+        this._params.push(typedDoc);
         break;
       case 'header':
-        this.headers.push(typedDoc);
+        this._headers.push(typedDoc);
         break;
       default:
-        this.error = new Error(
-          `value for 'loc' should be one of {query, path, header} for parameter ${name} in ${this.doc.operationId}`);
-        break;
+        throw new Error(`value for 'loc' should be one of {query, path, header} for parameter ${name} in ${this.doc.operationId}`);
     }
     return this;
   }
@@ -110,8 +131,8 @@ class Endpoint {
    * @returns {Endpoint}
    */
   requestBody(description, required, schema) {
-    utils.schemaRefObjectReplace(schema, this.spec.schemaObjectsToNames);
-    this.bodyJsonschema = utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef);
+    utils.schemaReplaceObjectRefsInPlace(schema, this.spec._schemaObjectsToNames);
+    this._bodyJsonschema = utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef);
     this.doc.requestBody = {
       description, required,
       content: {
@@ -127,15 +148,15 @@ class Endpoint {
    * Add a response.
    * @param code {int} - Status code of the response
    * @param description {string}
-   * @param schema {Object} - A valid jsonschema object
+   * @param schema {Object?} - A valid jsonschema object
    * @returns {Endpoint}
    */
   response(code, description, schema) {
     const key = String(code);
     const doc = {description};
     if(schema !== undefined) {
-      utils.schemaRefObjectReplace(schema, this.spec.schemaObjectsToNames);
-      this.responseSchemas[key] = utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef);
+      utils.schemaReplaceObjectRefsInPlace(schema, this.spec._schemaObjectsToNames);
+      this._responseSchemas[key] = utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef);
       doc.content = {
         'application/json': {
           schema: utils.schemaRefReplace(schema, utils.refNameToSwaggerRef)
@@ -171,6 +192,11 @@ class Endpoint {
     return this;
   }
 
+  /**
+   * Define a function to run when calling this endpoint.
+   * @param func {function(data:Data):*}
+   * @returns {Endpoint}
+   */
   define(func) {
     const dataSchema = {
       type: 'object',
@@ -195,7 +221,7 @@ class Endpoint {
     };
 
     if(this.doc.requestBody !== undefined) {
-      dataSchema.properties.body = this.bodyJsonschema;
+      dataSchema.properties.body = this._bodyJsonschema;
       if(this.doc.requestBody.required) {
         dataSchema.required.push('body');
       }
@@ -206,11 +232,11 @@ class Endpoint {
         schema.required.push(typedParam.doc.name);
       }
     };
-    this.query.forEach(p => addToSchema(dataSchema.properties.query, p));
-    this.params.forEach(p => addToSchema(dataSchema.properties.params, p));
-    this.headers.forEach(p => addToSchema(dataSchema.properties.headers, p));
+    this._query.forEach(p => addToSchema(dataSchema.properties.query, p));
+    this._params.forEach(p => addToSchema(dataSchema.properties.params, p));
+    this._headers.forEach(p => addToSchema(dataSchema.properties.headers, p));
 
-    this.dataSchema = dataSchema;
+    this._dataSchema = dataSchema;
 
     let pathItem = this.spec.doc.paths[this.path];
     if(pathItem === undefined) {
@@ -219,10 +245,84 @@ class Endpoint {
     }
     pathItem[this.method] = this.doc;
 
-
+    let handler = func;
+    if(this.spec._middleware.length) {
+      this.spec._middleware.forEach(m => {
+        handler = m(handler);
+      });
+    }
+    this._fullyWrappedFunc = handler;
     this.userDefinedFunc = func;
-    if(this.spec.middleware.length) {
 
+    this.spec.router[this.method.toLowerCase()](this.path, this.call.bind(this));
+    return this;
+  }
+
+  /**
+   * Call the endpoint as if using a network call.
+   * @param req {e.Request}
+   * @param res {e.Response}
+   */
+  async call(req, res) {
+    const data = new utils.Data(req, res, this);
+    let err;
+    let response;
+
+    try {
+      this.parseRequest(data);
+      const output = await this._fullyWrappedFunc(data);
+      if(output instanceof utils.Response) {
+        response = output;
+      } else {
+        response = new utils.Response(200, output);
+      }
+    } catch(error) {
+      if(error instanceof utils.JSONValidationError) {
+        response = new utils.Response(400, error);
+      } else {
+        response = new utils.Response(500, error);
+        err = error;
+      }
+    }
+
+    if(!response.ignore) {
+      res.status(response.status).set(response.headers).send(response.body);
+    }
+
+    const responseSchema = this._responseSchemas[response.status];
+    if(responseSchema !== undefined) {
+      const result = this.spec._validator.validate(response.body, responseSchema);
+      if(!result.valid) {
+        console.error(new utils.JSONValidationError(this, 'response', result));
+      }
+    }
+
+    this.spec.responseAndErrorHandler(data, response, err);
+  }
+
+  /**
+   * Parse the request into the data object.
+   * @private
+   * @param data {Data}
+   */
+  parseRequest(data) {
+    try {
+      this._query.forEach(p => data.query[p.doc.name] = utils.convertParamType(p, data.req.query[p.doc.name]));
+      this._params.forEach(p => data.params[p.doc.name] = utils.convertParamType(p, data.req.params[p.doc.name]));
+      this._headers.forEach(p => data.headers[p.doc.name] = utils.convertParamType(p, data.req.get(p.doc.name)));
+      if(this._bodyJsonschema !== null) {
+        data.body = data.req.body;
+      }
+    } catch({param, item}) {
+      throw utils.JSONValidationError.FromParameterType(this, param, item);
+    }
+
+    console.log(data.query.activeOnly);
+    const result = this.spec._validator.validate(data.asInstance(), this._dataSchema);
+    if(!result.valid) {
+      throw utils.JSONValidationError.FromValidatorResult(this, 'request', result);
     }
   }
 }
+
+module.exports = Endpoint;
