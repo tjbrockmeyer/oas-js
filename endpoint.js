@@ -1,8 +1,12 @@
 const utils = require('./utils');
 
+/**
+ * See {@link oas.Endpoint.constructor}
+ * @memberOf oas
+ */
 class Endpoint {
   /**
-   * @param spec {OpenAPI}
+   * @param spec {oas.OpenAPI}
    * @param operationId {string}
    * @param method {string}
    * @param path {string}
@@ -20,14 +24,12 @@ class Endpoint {
       responses: {},
       security: [],
     };
-    /** @type {OpenAPI} */
+    /** @type {oas.OpenAPI} */
     this.spec = spec;
     /** @type {string} */
     this.path = path;
     /** @type {string} */
     this.method = method.toLowerCase();
-    /** @type {Object} */
-    this.options = {};
     /** @type {function(data:Data):*} */
     this.userDefinedFunc = data => {
       throw new Error(`endpoint function is not defined for ${this.doc.operationId}`);
@@ -57,20 +59,9 @@ class Endpoint {
   }
 
   /**
-   * Add an option that may be consumed by middleware.
-   * @param key {string}
-   * @param value {*}
-   * @returns {Endpoint}
-   */
-  option(key, value) {
-    this.options[key] = value;
-    return this;
-  }
-
-  /**
    * Set the version. This will modify the operationId and the path.
    * @param v {int}
-   * @returns {Endpoint}
+   * @returns {oas.Endpoint}
    */
   version(v) {
     if(v <= 0 || this._endpointVersion) {
@@ -89,8 +80,8 @@ class Endpoint {
    * @param description {string}
    * @param required {boolean}
    * @param schema {Object} - A valid jsonschema object.
-   * @param type {string} - One of {string, number, bool}, the type to convert the parameter to when recieved.
-   * @returns {Endpoint}
+   * @param type {string} - One of {string, number, bool}, the type to convert the parameter to when received.
+   * @returns {oas.Endpoint}
    */
   parameter(loc, name, description, required, schema, type) {
     if(type !== 'string' && type !== 'number' && type !== 'bool') {
@@ -128,7 +119,7 @@ class Endpoint {
    * @param description {string}
    * @param required {boolean}
    * @param schema {Object}
-   * @returns {Endpoint}
+   * @returns {oas.Endpoint}
    */
   requestBody(description, required, schema) {
     utils.schemaReplaceObjectRefsInPlace(schema, this.spec._schemaObjectsToNames);
@@ -149,7 +140,7 @@ class Endpoint {
    * @param code {int} - Status code of the response
    * @param description {string}
    * @param schema {Object?} - A valid jsonschema object
-   * @returns {Endpoint}
+   * @returns {oas.Endpoint}
    */
   response(code, description, schema) {
     const key = String(code);
@@ -170,7 +161,7 @@ class Endpoint {
   /**
    * Deprecate the endpoint.
    * @param comment {string} - A comment about the deprecation
-   * @returns {Endpoint}
+   * @returns {oas.Endpoint}
    */
   deprecate(comment) {
     this.doc.deprecated = true;
@@ -185,7 +176,7 @@ class Endpoint {
    * @param requirements {Object<string,string[]>} - A map of security requirement names to their scopes.
    *   Many entries may be created. Only one entry must be satisfied to access the endpoint.
    *   All mapped requirements in the entry must be satisfied in order to satisfy the entry.
-   * @returns {Endpoint}
+   * @returns {oas.Endpoint}
    */
   security(requirements) {
     this.doc.security.push(requirements);
@@ -194,8 +185,8 @@ class Endpoint {
 
   /**
    * Define a function to run when calling this endpoint.
-   * @param func {function(data:Data):*}
-   * @returns {Endpoint}
+   * @param func {function(data:oas.Data):*}
+   * @returns {oas.Endpoint}
    */
   define(func) {
     const dataSchema = {
@@ -244,17 +235,10 @@ class Endpoint {
       this.spec.doc.paths[this.path] = pathItem;
     }
     pathItem[this.method] = this.doc;
+    this.spec.validate();
 
-    let handler = func;
-    if(this.spec._middleware.length) {
-      this.spec._middleware.forEach(m => {
-        handler = m(handler);
-      });
-    }
-    this._fullyWrappedFunc = handler;
     this.userDefinedFunc = func;
-
-    this.spec.router[this.method.toLowerCase()](this.path, this.call.bind(this));
+    this.spec.routeCreator(this, this.call.bind(this))
     return this;
   }
 
@@ -286,14 +270,21 @@ class Endpoint {
     }
 
     if(!response.ignore) {
-      res.status(response.status).set(response.headers).send(response.body);
+      try {
+        res.status(response.status).set(response.headers).json(response.body)
+      } catch(error) {
+        console.error('error while sending response:', error)
+        res.status(500).json({error: 'internal server error', message: 'error while sending response'})
+      }
     }
 
-    const responseSchema = this._responseSchemas[response.status];
-    if(responseSchema !== undefined) {
-      const result = this.spec._validator.validate(response.body, responseSchema);
-      if(!result.valid) {
-        console.error(new utils.JSONValidationError(this, 'response', result));
+    if(!err) {
+      const responseSchema = this._responseSchemas[response.status];
+      if(responseSchema !== undefined) {
+        const result = this.spec._validator.validate(response.body, responseSchema);
+        if(!result.valid) {
+          err = new utils.JSONValidationError(this, 'response', result)
+        }
       }
     }
 
@@ -303,7 +294,7 @@ class Endpoint {
   /**
    * Parse the request into the data object.
    * @private
-   * @param data {Data}
+   * @param data {oas.Data}
    */
   parseRequest(data) {
     try {
@@ -317,7 +308,6 @@ class Endpoint {
       throw utils.JSONValidationError.FromParameterType(this, param, item);
     }
 
-    console.log(data.query.activeOnly);
     const result = this.spec._validator.validate(data.asInstance(), this._dataSchema);
     if(!result.valid) {
       throw utils.JSONValidationError.FromValidatorResult(this, 'request', result);

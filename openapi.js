@@ -2,8 +2,12 @@ const jsonschema = require('jsonschema');
 const utils = require('./utils');
 const Endpoint = require('./endpoint');
 const express = require('express');
-const swaggerUi = require('swagger-ui-express');
+const swaggerUiExpress = require('swagger-ui-express');
 
+/**
+ * See {@link oas.OpenAPI.constructor}
+ * @memberOf oas
+ */
 class OpenAPI {
   /**
    * Create an Open API Specification.
@@ -13,9 +17,9 @@ class OpenAPI {
    * @param version {string} - A version in the following format: major.minor.patch
    * @param schemas {Object<string,Object>}
    * @param tags {{name:string,description:string}[]}
-   * @param middleware {[function(next:function(Data):*):function(Data):*]?}
+   * @param routeCreator {function(oas.Endpoint, function(e.Request, e.Response))}
    */
-  constructor(title, description, serverUrl, version, schemas, tags, middleware=[]) {
+  constructor(title, description, serverUrl, version, schemas, tags, routeCreator) {
     this.doc = {
       openapi: '3.0.0',
       info: {
@@ -33,28 +37,20 @@ class OpenAPI {
         schemas: {}
       }
     };
-    /** @type {e.Router} */
-    this.router = express.Router();
-    /** @type {Object.<string,Endpoint>} */
+    /** @type {Object.<string,oas.Endpoint>} */
     this.endpoints = {};
-    /** @type {function(Data, Response, Error)} */
-    this.responseAndErrorHandler = (data, response, error) => {
-      if(error) {
-        console.error(error);
-      }
-    };
+    /** @type {function(oas.Endpoint, function(e.Request, e.Response))} */
+    this.routeCreator = routeCreator
 
     /** @private */
     this._validator = new jsonschema.Validator();
-    /** @private */
-    this._middleware = [...middleware].reverse();
     /** @private */
     this._schemaObjectsToNames = new Map(Object.getOwnPropertyNames(schemas).map(n => ([schemas[n], `{${n}}`])));
 
     Object.getOwnPropertyNames(schemas).forEach(n => {
       utils.schemaReplaceObjectRefsInPlace(schemas[n], this._schemaObjectsToNames);
       this.doc.components.schemas[n] = utils.schemaRefReplace(schemas[n], utils.refNameToSwaggerRef);
-      this._validator.addSchema(schemas[n], n);
+      this._validator.addSchema(schemas[n], `/${n}`);
     });
   }
 
@@ -66,21 +62,44 @@ class OpenAPI {
    * @param summary {string}
    * @param description {string}
    * @param tags {string[]}
-   * @returns {Endpoint}
+   * @returns {oas.Endpoint}
    */
   newEndpoint(operationId, method, path, summary, description, tags) {
     return new Endpoint(this, operationId, method, path, summary, description, tags);
   }
 
-  save() {
+  /**
+   * Mount the Swagger UI to the given router.
+   * @param router {e.Router}
+   * @param path {string?}
+   */
+  swaggerUi(router, path='/docs') {
+    router.use(swaggerUiExpress.serve)
+    router.get(path, (req, res) => swaggerUiExpress.setup(
+      this.doc, undefined, undefined, undefined, undefined, undefined, this.doc.info.title)(req, res))
+  }
+
+  /**
+   * Handle the sent response and any error that may have occurred.
+   * @param data {oas.Data}
+   * @param response {oas.Response}
+   * @param error {Error?}
+   */
+  responseAndErrorHandler(data, response, error) {
+    if(error) {
+      console.error(error);
+    }
+  }
+
+  /**
+   * @private
+   */
+  validate() {
     const result = jsonschema.validate(this.doc, require('./openapi-3_0_0-schema'));
     if(!result.valid) {
       result.errors.forEach(e => console.error('  ' + e.toString()));
       throw new Error('Specification failed OpenAPI 3.0.0 validation. See logs for errors.');
     }
-    this.router.use('/api/docs', swaggerUi.serve);
-    this.router.get('/api/docs', swaggerUi.setup(
-      this.doc, undefined, undefined, undefined, undefined, undefined, this.doc.info.title));
   }
 }
 

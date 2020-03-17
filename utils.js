@@ -1,19 +1,21 @@
-const jsonschema = require('jsonschema');
-
+/**
+ * See {@link oas.Data.constructor}
+ * @memberOf oas
+ */
 class Data {
   /**
    * Data to be supplied to an endpoint function for processing.
    * Contains query, path, and header parameters, along with an 'extra' object for attaching information via middleware
    * @param req {e.Request}
    * @param res {e.Response}
-   * @param endpoint {Endpoint}
+   * @param endpoint {oas.Endpoint}
    */
   constructor(req, res, endpoint) {
     /** @type {e.Request} */
     this.req = req;
     /** @type {e.Response} */
     this.res = res;
-    /** @type {Endpoint} */
+    /** @type {oas.Endpoint} */
     this.endpoint = endpoint;
     /** @type {Object} */
     this.query = {};
@@ -23,8 +25,6 @@ class Data {
     this.headers = {};
     /** @type {*} */
     this.body = undefined;
-    /** @type {Object} */
-    this.extra = {};
   }
 
   asInstance() {
@@ -37,8 +37,10 @@ class Data {
   }
 }
 
-
-
+/**
+ * See {@link oas.Response.constructor}
+ * @memberOf oas
+ */
 class Response {
   /**
    * Return a Response when sending additional information is needed.
@@ -49,7 +51,7 @@ class Response {
    * @param args.ignore {boolean?} - Specifies that the response was already handled manually using Data.res
    */
   constructor(status, body=undefined, args={}) {
-    /** @type {Number} */
+    /** @type {number} */
     this.status = status;
     /** @type {*} */
     this.body = body;
@@ -60,10 +62,14 @@ class Response {
   }
 }
 
+/**
+ * See {@link oas.JSONValidationError.constructor}
+ * @memberOf oas
+ */
 class JSONValidationError extends Error {
   /**
    * A jsonschema validation error.
-   * @param endpoint {Endpoint} - The endpoint which received the error.
+   * @param endpoint {oas.Endpoint} - The endpoint which received the error.
    * @param loc {string} - The location of the json object which failed.
    * @param instance {*} - The value which failed validation.
    * @param errors {string[]} - The invalid jsonschema result returned by the validation.
@@ -80,8 +86,8 @@ class JSONValidationError extends Error {
 
   /**
    *
-   * @param endpoint
-   * @param loc
+   * @param endpoint {oas.Endpoint} - The endpoint which is being validated
+   * @param loc {string} - Is the result from validating the 'request' or the 'response'?
    * @param result {ValidatorResult} - The invalid jsonschema result returned by the validation
    * @constructor
    */
@@ -90,10 +96,10 @@ class JSONValidationError extends Error {
   }
 
   /**
-   * @param endpoint {Endpoint}
-   * @param param {{type:string,doc:{in:string,name:string}}}
-   * @param value {string}
-   * @returns {JSONValidationError}
+   * @param endpoint {oas.Endpoint} - The endpoint which is being validated
+   * @param param {{type:string,doc:{in:string,name:string}}} - The parameter in which an error occurred
+   * @param value {string} - The value given for the parameter
+   * @returns {oas.JSONValidationError}
    * @constructor
    */
   static FromParameterType(endpoint, param, value) {
@@ -130,6 +136,15 @@ module.exports = {
   Data,
   Response,
   JSONValidationError,
+
+  /**
+   * Convert a path to an express-compatible path.
+   * @param path {string}
+   * @returns {string}
+   */
+  toExpressPath(path) {
+    return path.replace(/{.+?}/, s => `:${s.slice(1, s.length - 1)}`)
+  },
 
   /**
    * Convert a string item into the given type. Empty strings return as undefined.
