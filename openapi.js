@@ -88,7 +88,11 @@ class OpenAPI {
       this.doc.components.schemas[n] = utils.schemaRefReplace(schemas[n], utils.refNameToSwaggerRef);
       this._validator.addSchema(schemas[n], `/${n}`);
     });
-    utils.removeAllInstancesOfKey(this.doc.components.schemas, ['customValidation', 'dependencies'])
+    utils.updateAllInstancesOfKeys(this.doc.components.schemas, {
+      customValidation: null,
+      dependencies: null,
+      patternProperties: 'properties',
+    })
   }
 
   /**

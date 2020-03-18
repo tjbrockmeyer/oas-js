@@ -198,12 +198,24 @@ module.exports = {
     throw {param, item};
   },
 
-  removeAllInstancesOfKey: (object, keys) => {
-    const set = new Set(keys)
+  /**
+   * Recursively remove or change keys in 'object'.
+   * @param object {Object.<string,*>} - Object to update the keys of
+   * @param keys {Object.<string,string|null>} - Keys with values of null will be removed, otherwise they will be renamed.
+   */
+  updateAllInstancesOfKeys: (object, keys) => {
     forAllRecursiveKeys(object, (o, k) => {
-      if(set.has(k)) {
+      if(keys[k] !== undefined) {
+        if(keys[k] === null) {
+          delete o[k]
+          return false
+        }
+        if(typeof o[k] === 'object') {
+          o[keys[k]] = Object.assign(o[keys[k]] || {}, o[k])
+        } else {
+          o[keys[k]] = o[k]
+        }
         delete o[k]
-        return false
       }
       return true
     })
