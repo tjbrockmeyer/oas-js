@@ -8,6 +8,30 @@ const schemas = {
     customValidation: (instance, schema, options, ctx) => {return 'banana validation'}},
   Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}},
     customValidation: 'carrotValidation'},
+  Date: {
+    allOf: [
+      ref('Apple'),
+      ref('Banana')
+    ]
+  },
+  Elephant: {
+    anyOf: [
+      ref('Apple'),
+      ref('Banana')
+    ]
+  },
+  Citrus: {
+    patternProperties: {
+      [`^or.nge .{2}$`]: ref('Orange')
+    }
+  },
+  Orange: {
+    oneOf: [
+      ref('Apple'),
+      ref('Banana')
+    ]
+  },
+
 };
 
 /** @type {oas.OpenAPI} */
@@ -91,6 +115,14 @@ function createApi(routeCreator, port) {
     .define(async data => {
       console.log(data.params.id)
       return {ghi: true}
+    })
+
+  o.newEndpoint('postOrange', 'POST', '/orange', 'Create an orange', 'this is another description', ['Tag2'])
+    .requestBody('orange to create', true, ref('Orange'))
+    .response(201, 'Created the orange')
+    .response(409, 'Orange already exists')
+    .define(async data => {
+      console.log(JSON.stringify(data.body, undefined, 2))
     })
 
   customValidation(o)

@@ -210,7 +210,9 @@ module.exports = {
           delete o[k]
           return false
         }
-        if(typeof o[k] === 'object') {
+        if(o[k] instanceof Array) {
+          o[keys[k]] = [...(o[keys[k]] || []), ...o[k]]
+        } else if(typeof o[k] === 'object') {
           o[keys[k]] = Object.assign(o[keys[k]] || {}, o[k])
         } else {
           o[keys[k]] = o[k]
