@@ -108,6 +108,11 @@ class JSONValidationError extends Error {
   }
 }
 
+/**
+ * Call func on every single key in every nexted object inside and including 'o'.
+ * @param o {Object}
+ * @param func {function(o:Object, k:string):boolean} - Returns true if the current key should be entered into.
+ */
 function forAllRecursiveKeys(o, func) {
   if(o instanceof Array) {
     o.forEach(i => {
@@ -147,6 +152,24 @@ module.exports = {
   },
 
   /**
+   * Get a reference to a defined schema with the name 'to'
+   * @param to {string}
+   * @returns {{$ref: string}}
+   */
+  ref(to) {
+    return {$ref: `{${to}}`}
+  },
+
+  /**
+   * Get a schema which is an array of the given schema.
+   * @param schema {Object}
+   * @returns {{type: string, items: *}}
+   */
+  arrayOf(schema) {
+    return {type: 'array', items: schema}
+  },
+
+  /**
    * Convert a string item into the given type. Empty strings return as undefined.
    * @param param {{type:string}}
    * @param item {string}
@@ -175,6 +198,17 @@ module.exports = {
     throw {param, item};
   },
 
+  removeAllInstancesOfKey: (object, keys) => {
+    const set = new Set(keys)
+    forAllRecursiveKeys(object, (o, k) => {
+      if(set.has(k)) {
+        delete o[k]
+        return false
+      }
+      return true
+    })
+  },
+
   /**
    * Transform all $ref objects which are referencing another object into jsonschema string references.
    * @param schema {Object}
@@ -183,8 +217,11 @@ module.exports = {
   schemaReplaceObjectRefsInPlace: (schema, schemaObjectsToNames) => {
     forAllRefs(schema, (object, key) => {
       const value = object[key];
+      if(typeof value !== 'object') {
+        return
+      }
       if(!schemaObjectsToNames.has(value)) {
-        throw new Error(`missing required reference to '${key}'`);
+        throw new Error(`missing required reference to '${value}'`);
       }
       object[key] = schemaObjectsToNames.get(value);
     });

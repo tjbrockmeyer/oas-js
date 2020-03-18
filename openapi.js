@@ -1,7 +1,6 @@
 const jsonschema = require('jsonschema');
 const utils = require('./utils');
 const Endpoint = require('./endpoint');
-const express = require('express');
 const swaggerUiExpress = require('swagger-ui-express');
 
 /**
@@ -41,9 +40,29 @@ class OpenAPI {
     this.endpoints = {};
     /** @type {function(oas.Endpoint, function(e.Request, e.Response))} */
     this.routeCreator = routeCreator
+    /** @type {Object.<string,function(result:jsonschema.ValidatorResult)>} */
+    this.customValidationFunctions = {}
 
     /** @private */
     this._validator = new jsonschema.Validator();
+    this._validator.attributes.customValidation = (instance, schema, options, ctx) => {
+      const result = new jsonschema.ValidatorResult(instance, schema, options, ctx);
+      const v = schema['customValidation']
+      if(typeof v === 'string') {
+        if(typeof this.customValidationFunctions[v] === 'function') {
+          this.customValidationFunctions[v](result)
+        } else {
+          result.addError(
+            'customValidation as a string must reference a defined customValidation function on the OpenAPI object')
+        }
+      } else if(typeof v === 'function') {
+        v(result);
+      } else if(typeof v !== 'undefined') {
+        result.addError(
+          'customValidation must be either a function, or a name of a defined custom validation function')
+      }
+      return result
+    };
     /** @private */
     this._schemaObjectsToNames = new Map(Object.getOwnPropertyNames(schemas).map(n => ([schemas[n], `{${n}}`])));
 
@@ -52,6 +71,7 @@ class OpenAPI {
       this.doc.components.schemas[n] = utils.schemaRefReplace(schemas[n], utils.refNameToSwaggerRef);
       this._validator.addSchema(schemas[n], `/${n}`);
     });
+    utils.removeAllInstancesOfKey(this.doc.components.schemas, ['customValidation'])
   }
 
   /**
@@ -73,7 +93,7 @@ class OpenAPI {
    * @param router {e.Router}
    * @param path {string?}
    */
-  swaggerUi(router, path='/docs') {
+  swaggerUi(router, path = '/docs') {
     router.use(swaggerUiExpress.serve)
     router.get(path, (req, res) => swaggerUiExpress.setup(
       this.doc, undefined, undefined, undefined, undefined, undefined, this.doc.info.title)(req, res))

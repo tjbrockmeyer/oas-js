@@ -1,10 +1,11 @@
-const {OpenAPI, Response, toExpressPath} = require('..');
+const {OpenAPI, Response, toExpressPath, ref, arrayOf} = require('..');
+const {JSONValidationError} = require('../utils')
 const express = require('express');
 
 const schemas = {
   Apple: {type: 'object', properties: {abc: {type: 'integer'}}},
-  Banana: {type: 'object', properties: {def: {type: 'string'}}},
-  Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}}},
+  Banana: {type: 'object', properties: {def: {type: 'string'}}, customValidation: () => console.log('banana validation')},
+  Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}}, customValidation: 'carrotValidation'},
 };
 
 function myMiddleware(req, res, next) {
@@ -36,6 +37,12 @@ function createApi(routeCreator, port) {
   o.responseAndErrorHandler = (data, response, error) => {
     console.log(`${data.endpoint.doc.operationId}: ${data.req.method} ${data.req.url} | ${response.status}`)
     if(error) {
+      if(error instanceof JSONValidationError) {
+        error = {
+          message: [error.message, ...error.instance.errors.map(e => e.message)],
+          stack: error.stack,
+        }
+      }
       console.error({
         operationId: data.endpoint.doc.operationId,
         method: data.req.method,
@@ -49,18 +56,18 @@ function createApi(routeCreator, port) {
     }
   }
 
-  o.newEndpoint('getStuff', 'GET', '/stuff', 'Get some stuff', 'Like, really get some stuff', ['Tag1'])
+  o.newEndpoint('getStuff', 'GET', '/apple', 'Get some apples', 'Like, really get some apples', ['Tag1'])
     .parameter('query', 'name', 'filter by name', false, {type: 'string'}, 'string')
     .parameter('query', 'activeOnly', 'onlyShowActives', false, {type: 'boolean', default: true}, 'bool')
     .parameter('query', 'limit', 'maximum number to retrieve', true, {type: 'integer'}, 'number')
-    .response(200, 'Stuff found', {type: 'array', items: {type: 'string'}})
+    .response(200, 'Stuff found', arrayOf(ref('Apple')))
     .define(async data => {
       console.log(data.query.name, data.query.activeOnly === undefined || data.query.activeOnly);
       return new Response(200, [data.query.name]);
     });
 
-  o.newEndpoint('putApple', 'PUT', '/apple', 'Create or update an apple', '', ['Tag2'])
-    .requestBody('apple', true, {$ref: schemas.Apple})
+  o.newEndpoint('putBanana', 'PUT', '/banana', 'Create or update a banana', '', ['Tag2'])
+    .requestBody('apple', true, ref('Banana'))
     .response(200, 'Updated')
     .response(201, 'Created')
     .define(async data => {
@@ -68,13 +75,18 @@ function createApi(routeCreator, port) {
       return new Response(201);
     });
 
-  o.newEndpoint('getApple', 'GET', '/apple/{id}', 'Get a single apple by ID', 'this is a description', ['Tag2'])
+  o.newEndpoint('getCarrot', 'GET', '/carrot/{id}', 'Get a single carrot by ID', 'this is a description', ['Tag2'])
     .parameter('path', 'id', 'The id to retrieve', true, {type: 'integer'}, 'number')
-    .response(200, 'Found the apple', {$ref: schemas.Apple})
+    .response(200, 'Found the carrot', ref('Carrot'))
     .response(204, 'Apple id not found')
     .define(async data => {
-      return data.params.id
+      console.log(data.params.id)
+      return {ghi: true}
     })
+
+  o.customValidationFunctions.carrotValidation = result => {
+    result.addError('failed carrot validation')
+  }
 
   return o
 }
