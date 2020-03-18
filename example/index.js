@@ -4,9 +4,18 @@ const express = require('express');
 
 const schemas = {
   Apple: {type: 'object', properties: {abc: {type: 'integer'}}},
-  Banana: {type: 'object', properties: {def: {type: 'string'}}, customValidation: () => console.log('banana validation')},
-  Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}}, customValidation: 'carrotValidation'},
+  Banana: {type: 'object', properties: {def: {type: 'string'}},
+    customValidation: (instance, schema, options, ctx) => {return 'banana validation'}},
+  Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}},
+    customValidation: 'carrotValidation'},
 };
+
+/** @type {oas.OpenAPI} */
+function customValidation(api) {
+  api.customValidationFunctions.carrotValidation = () => {
+    this.addError('failed carrot validation')
+  }
+}
 
 function myMiddleware(req, res, next) {
   console.log('hello from myMiddleware!')
@@ -84,10 +93,7 @@ function createApi(routeCreator, port) {
       return {ghi: true}
     })
 
-  o.customValidationFunctions.carrotValidation = result => {
-    result.addError('failed carrot validation')
-  }
-
+  customValidation(o)
   return o
 }
 

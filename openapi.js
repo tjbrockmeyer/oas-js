@@ -40,7 +40,18 @@ class OpenAPI {
     this.endpoints = {};
     /** @type {function(oas.Endpoint, function(e.Request, e.Response))} */
     this.routeCreator = routeCreator
-    /** @type {Object.<string,function(result:jsonschema.ValidatorResult)>} */
+    /** @type {
+     *  Object.<
+     *    string,
+     *    function(
+     *      this:ValidatorResult,
+     *      instance:*,
+     *      schema:Schema,
+     *      options:Options,
+     *      ctx:SchemaContext
+     *    )
+     *  >}
+     */
     this.customValidationFunctions = {}
 
     /** @private */
@@ -50,13 +61,19 @@ class OpenAPI {
       const v = schema['customValidation']
       if(typeof v === 'string') {
         if(typeof this.customValidationFunctions[v] === 'function') {
-          this.customValidationFunctions[v](result)
+          const s = this.customValidationFunctions[v].call(result, instance, schema, options, ctx)
+          if(s !== undefined) {
+            result.addError(s)
+          }
         } else {
           result.addError(
             'customValidation as a string must reference a defined customValidation function on the OpenAPI object')
         }
       } else if(typeof v === 'function') {
-        v(result);
+        const s = v.call(result, instance, schema, options, ctx);
+        if(s !== undefined) {
+          result.addError(s)
+        }
       } else if(typeof v !== 'undefined') {
         result.addError(
           'customValidation must be either a function, or a name of a defined custom validation function')
