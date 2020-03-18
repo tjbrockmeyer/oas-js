@@ -12,7 +12,7 @@ const schemas = {
 
 /** @type {oas.OpenAPI} */
 function customValidation(api) {
-  api.customValidationFunctions.carrotValidation = () => {
+  api.customValidationFunctions.carrotValidation = function() {
     this.addError('failed carrot validation')
   }
 }
