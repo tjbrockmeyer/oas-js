@@ -30,9 +30,9 @@ class Endpoint {
     this.path = path;
     /** @type {string} */
     this.method = method.toLowerCase();
-    /** @type {function(data:Data):*} */
+    /** @type {function(data:oas.Data):*} */
     this.userDefinedFunc = data => {
-      throw new Error(`endpoint function is not defined for ${this.doc.operationId}`);
+      throw new Error(`endpoint function is not defined for ${data.endpoint.doc.operationId}`);
     };
 
     /** @private */
@@ -87,17 +87,19 @@ class Endpoint {
     if(type !== 'string' && type !== 'number' && type !== 'bool') {
       throw new Error(`invalid type for parameter ${name} in ${loc} of ${this.doc.operationId} (must be one of {string,number,bool})`);
     }
-    utils.schemaReplaceObjectRefsInPlace(schema, this.spec._schemaObjectsToNames);
-    const doc = {
-      name,
-      description,
-      in: loc,
-      required,
-      schema: utils.schemaRefReplace(schema, utils.refNameToSwaggerRef)
+    const typedDoc = {
+      doc: {
+        name,
+        description,
+        in: loc,
+        required,
+        schema: utils.toOasSchema(schema, this.spec)
+      },
+      type,
+      jsonschema: utils.toJsonschema(schema, this.spec)
     };
-    const typedDoc = {doc, type, jsonschema: utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef)};
 
-    this.doc.parameters.push(doc);
+    this.doc.parameters.push(typedDoc.doc);
     switch(loc) {
       case 'query':
         this._query.push(typedDoc);
@@ -122,13 +124,12 @@ class Endpoint {
    * @returns {oas.Endpoint}
    */
   requestBody(description, required, schema) {
-    utils.schemaReplaceObjectRefsInPlace(schema, this.spec._schemaObjectsToNames);
-    this._bodyJsonschema = utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef);
+    this._bodyJsonschema = utils.toJsonschema(schema, this.spec);
     this.doc.requestBody = {
       description, required,
       content: {
         'application/json': {
-          schema: utils.schemaRefReplace(schema, utils.refNameToSwaggerRef)
+          schema: utils.toOasSchema(schema, this.spec)
         }
       }
     };
@@ -146,11 +147,10 @@ class Endpoint {
     const key = String(code);
     const doc = {description};
     if(schema !== undefined) {
-      utils.schemaReplaceObjectRefsInPlace(schema, this.spec._schemaObjectsToNames);
-      this._responseSchemas[key] = utils.schemaRefReplace(schema, utils.refNameToJsonschemaRef);
+      this._responseSchemas[key] = utils.toJsonschema(schema, this.spec);
       doc.content = {
         'application/json': {
-          schema: utils.schemaRefReplace(schema, utils.refNameToSwaggerRef)
+          schema: utils.toOasSchema(schema, this.spec)
         }
       }
     }
@@ -235,7 +235,6 @@ class Endpoint {
       this.spec.doc.paths[this.path] = pathItem;
     }
     pathItem[this.method] = this.doc;
-    this.spec.validate();
 
     this.userDefinedFunc = func;
     this.spec.routeCreator(this, this.call.bind(this))
@@ -281,9 +280,9 @@ class Endpoint {
     if(!err) {
       const responseSchema = this._responseSchemas[response.status];
       if(responseSchema !== undefined) {
-        const result = this.spec._validator.validate(response.body, responseSchema);
+        const result = this.spec.validate(response.body, responseSchema);
         if(!result.valid) {
-          err = new utils.JSONValidationError(this, 'response', result)
+          err = utils.JSONValidationError.FromValidatorResult(this, 'response', result)
         }
       }
     }
@@ -308,7 +307,7 @@ class Endpoint {
       throw utils.JSONValidationError.FromParameterType(this, param, item);
     }
 
-    const result = this.spec._validator.validate(data.asInstance(), this._dataSchema);
+    const result = this.spec.validate(data.asInstance(), this._dataSchema);
     if(!result.valid) {
       throw utils.JSONValidationError.FromValidatorResult(this, 'request', result);
     }

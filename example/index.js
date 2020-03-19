@@ -2,16 +2,27 @@ const {OpenAPI, Response, toExpressPath, ref, arrayOf} = require('..');
 const {JSONValidationError} = require('../utils')
 const express = require('express');
 
+function bananaValidation(instance, schema, options, ctx) {
+  return 'banana validation'
+}
+
 const schemas = {
-  Apple: {type: 'object', properties: {abc: {type: 'integer'}}},
-  Banana: {type: 'object', properties: {def: {type: 'string'}},
-    customValidation: (instance, schema, options, ctx) => {return 'banana validation'}},
-  Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}},
-    customValidation: 'carrotValidation'},
+  Apple: {type: 'object', properties: {abc: {type: 'integer'}}, additionalProperties: false},
+  Banana: {
+    type: 'object',
+    properties: {def: {type: 'string'}},
+    'x-validator': bananaValidation,
+    additionalProperties: false
+  },
+  Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}}, 'x-validator': 'carrotValidation'},
   Date: {
     allOf: [
       ref('Apple'),
       ref('Banana')
+    ],
+    'x-validator': [
+      'carrotValidation',
+      bananaValidation
     ]
   },
   Elephant: {
@@ -26,17 +37,19 @@ const schemas = {
     }
   },
   Orange: {
-    oneOf: [
-      ref('Apple'),
-      ref('Banana')
-    ]
-  },
-
+    description: 'an orange',
+    'x-nullable': {
+      oneOf: [
+        ref('Apple'),
+        ref('Banana')
+      ]
+    }
+  }
 };
 
-/** @type {oas.OpenAPI} */
+/** @param api {oas.OpenAPI} */
 function customValidation(api) {
-  api.customValidationFunctions.carrotValidation = function() {
+  api.validatorFuncs.carrotValidation = function() {
     this.addError('failed carrot validation')
   }
 }
@@ -49,7 +62,7 @@ function myMiddleware(req, res, next) {
 function main() {
   const port = 8001
   const app = express();
-  app.use(express.json())
+  app.use(express.json({strict: false}))
   app.listen(8080)
   const routeCreator = (endpoint, handler) => {
     app[endpoint.method](toExpressPath(endpoint.path), [myMiddleware, handler])
@@ -72,7 +85,7 @@ function createApi(routeCreator, port) {
     if(error) {
       if(error instanceof JSONValidationError) {
         error = {
-          message: [error.message, ...error.instance.errors.map(e => e.message)],
+          message: [error.message, ...error.errors],
           stack: error.stack,
         }
       }

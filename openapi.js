@@ -52,47 +52,48 @@ class OpenAPI {
      *    )
      *  >}
      */
-    this.customValidationFunctions = {}
+    this.validatorFuncs = {}
 
     /** @private */
     this._validator = new jsonschema.Validator();
-    this._validator.attributes.customValidation = (instance, schema, options, ctx) => {
+    this._validator.attributes['x-validator'] = (instance, schema, options, ctx) => {
       const result = new jsonschema.ValidatorResult(instance, schema, options, ctx);
-      const v = schema['customValidation']
-      if(typeof v === 'string') {
-        if(typeof this.customValidationFunctions[v] === 'function') {
-          const s = this.customValidationFunctions[v].call(result, instance, schema, options, ctx)
+      let xValidator = schema['x-validator']
+      if(!(xValidator instanceof Array)) {
+        xValidator = [xValidator]
+      }
+      xValidator.forEach(v => {
+        if(typeof v === 'string') {
+          if(typeof this.validatorFuncs[v] === 'function') {
+            const s = this.validatorFuncs[v].call(result, instance, schema, options, ctx)
+            if(s !== undefined) {
+              result.addError(s)
+            }
+          } else {
+            result.addError(
+              `x-validator strings (${v}) must reference a defined customValidation function on the OpenAPI object`)
+          }
+        } else if(typeof v === 'function') {
+          const s = v.call(result, instance, schema, options, ctx);
+          console.log(v, s)
           if(s !== undefined) {
             result.addError(s)
           }
-        } else {
+        } else if(typeof v !== 'undefined') {
           result.addError(
-            'customValidation as a string must reference a defined customValidation function on the OpenAPI object')
+            `x-validator type (${typeof v}) must be either a function, a string, or an array of both`)
         }
-      } else if(typeof v === 'function') {
-        const s = v.call(result, instance, schema, options, ctx);
-        if(s !== undefined) {
-          result.addError(s)
-        }
-      } else if(typeof v !== 'undefined') {
-        result.addError(
-          'customValidation must be either a function, or a name of a defined custom validation function')
-      }
+      })
       return result
     };
     /** @private */
     this._schemaObjectsToNames = new Map(Object.getOwnPropertyNames(schemas).map(n => ([schemas[n], `{${n}}`])));
 
     Object.getOwnPropertyNames(schemas).forEach(n => {
-      utils.schemaReplaceObjectRefsInPlace(schemas[n], this._schemaObjectsToNames);
-      this.doc.components.schemas[n] = utils.schemaRefReplace(schemas[n], utils.refNameToSwaggerRef);
-      this._validator.addSchema(schemas[n], `/${n}`);
+      this.doc.components.schemas[n] = utils.toOasSchema(schemas[n], this)
+      this._validator.addSchema(utils.toJsonschema(schemas[n], this), `/${n}`);
+      console.log(utils.toJsonschema(schemas[n], this))
     });
-    utils.updateAllInstancesOfKeys(this.doc.components.schemas, {
-      customValidation: null,
-      dependencies: null,
-      patternProperties: 'properties',
-    })
   }
 
   /**
@@ -133,9 +134,20 @@ class OpenAPI {
   }
 
   /**
-   * @private
+   * Validate an instance against a schema which references schemas inside this spec.
+   * @param instance {*}
+   * @param schema {Object}
+   * @returns {ValidatorResult}
    */
-  validate() {
+  validate(instance, schema) {
+    return this._validator.validate(instance, schema)
+  }
+
+  /**
+   * Validate this spec.
+   * Throws an error if invalid.
+   */
+  validateSpec() {
     const result = jsonschema.validate(this.doc, require('./openapi-3_0_0-schema'));
     if(!result.valid) {
       result.errors.forEach(e => console.error('  ' + e.toString()));

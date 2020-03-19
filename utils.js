@@ -120,21 +120,51 @@ function forAllRecursiveKeys(o, func) {
     });
   } else if(typeof o === 'object') {
     Object.getOwnPropertyNames(o).forEach(k => {
+      const next = o[k]
       if(func(o, k)) {
-        forAllRecursiveKeys(o[k], func);
+        forAllRecursiveKeys(next, func);
       }
     });
   }
 }
 
-function forAllRefs(schema, func) {
-  forAllRecursiveKeys(schema, (object, key) => {
+/**
+ * Transform all $ref objects in a schema into reference strings using replaceFunc.
+ * Retain all functions which are present in the input.
+ * @this {oas.OpenAPI}
+ * @param schema {Object}
+ * @param replaceFunc {function(ref:string):string}
+ * @returns {Object}
+ */
+function schemaRefReplace(schema, replaceFunc) {
+  const funcs = []
+  function replacer(key, value) {
     if(key === '$ref') {
-      func(object, key);
-      return false;
+      if(typeof value === 'object') {
+        if(!this._schemaObjectsToNames.has(value)) {
+          throw new Error(`missing required reference to this object: ${JSON.stringify(value)}`);
+        }
+        const v = this._schemaObjectsToNames.get(value)
+        return replaceFunc(v.slice(1, v.length - 1))
+      }
+      if(typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+        return replaceFunc(value.slice(1, value.length - 1))
+      }
     }
-    return true;
-  })
+    if(typeof value === 'function') {
+      const id = funcs.length
+      funcs.push(value)
+      return `x-oas-function: ${id}`
+    }
+    return value
+  }
+  function reviver(key, value) {
+    if(typeof value === 'string' && value.startsWith('x-oas-function: ')) {
+      return funcs[parseInt(value.substring(16))]
+    }
+    return value
+  }
+  return JSON.parse(JSON.stringify(schema, replacer), reviver);
 }
 
 module.exports = {
@@ -199,81 +229,58 @@ module.exports = {
   },
 
   /**
-   * Recursively remove or change keys in 'object'.
-   * @param object {Object.<string,*>} - Object to update the keys of
-   * @param keys {Object.<string,string|null>} - Keys with values of null will be removed, otherwise they will be renamed.
+   * Modify 'schema' to be compliant with Open API
+   * @param schema {Object}
+   * @param spec {oas.OpenAPI}
+   * @returns {Object}
    */
-  updateAllInstancesOfKeys: (object, keys) => {
-    forAllRecursiveKeys(object, (o, k) => {
-      if(keys[k] !== undefined) {
-        if(keys[k] === null) {
+  toOasSchema: (schema, spec) => {
+    const s = schemaRefReplace.call(spec, schema, n => `#/components/schemas/${n}`)
+    forAllRecursiveKeys(s, (o, k) => {
+      switch(k) {
+        case 'dependencies':
           delete o[k]
           return false
-        }
-        if(o[k] instanceof Array) {
-          o[keys[k]] = [...(o[keys[k]] || []), ...o[k]]
-        } else if(typeof o[k] === 'object') {
-          o[keys[k]] = Object.assign(o[keys[k]] || {}, o[k])
-        } else {
-          o[keys[k]] = o[k]
-        }
+        case 'patternProperties':
+          o.properties = Object.assign(o.properties || {}, o[k])
+          delete o[k]
+          break;
+        case 'x-nullable':
+          o.description = (o.description ? o.description + ' - ' : '') + '(nullable)'
+          o.allOf = [
+            o[k],
+            {nullable: true}
+          ]
+          delete o[k]
+          break;
+        case 'x-validator':
+          delete o[k]
+          break;
+      }
+      return true
+    })
+    return s
+  },
+
+  /**
+   * Modify 'schema' to be compliant with Jsonschema
+   * @param schema {Object}
+   * @param spec {oas.OpenAPI}
+   * @returns {Object}
+   */
+  toJsonschema: (schema, spec) => {
+    const s = schemaRefReplace.call(spec, schema, n => `/${n}`)
+    forAllRecursiveKeys(s, (o, k) => {
+      if(k === 'x-nullable') {
+        o.oneOf = [
+          o[k],
+          {title: 'Null', type: 'null'}
+        ]
         delete o[k]
       }
       return true
     })
-  },
-
-  /**
-   * Transform all $ref objects which are referencing another object into jsonschema string references.
-   * @param schema {Object}
-   * @param schemaObjectsToNames {Map<Object,string>}
-   */
-  schemaReplaceObjectRefsInPlace: (schema, schemaObjectsToNames) => {
-    forAllRefs(schema, (object, key) => {
-      const value = object[key];
-      if(typeof value !== 'object') {
-        return
-      }
-      if(!schemaObjectsToNames.has(value)) {
-        throw new Error(`missing required reference to '${value}'`);
-      }
-      object[key] = schemaObjectsToNames.get(value);
-    });
-  },
-
-  /**
-   * Transform all $ref objects in a schema into some references.
-   * @param schema {Object}
-   * @param replaceFunc {function(ref:string):string}
-   * @returns {Object}
-   */
-  schemaRefReplace: (schema, replaceFunc) => {
-    schema = JSON.parse(JSON.stringify(schema));
-    forAllRefs(schema, (object, key) => {
-      const value = object[key];
-      if(value.startsWith('{') && value.endsWith('}')) {
-        object[key] = replaceFunc(value.slice(1, value.length - 1));
-      }
-    });
-    return schema;
-  },
-
-  /**
-   * Transform a name into a swagger reference.
-   * @param name {string}
-   * @returns {string}
-   */
-  refNameToSwaggerRef: (name) => {
-    return `#/components/schemas/${name}`
-  },
-
-  /**
-   * Transform a name into a jsonschema reference.
-   * @param name {string}
-   * @returns {string}
-   */
-  refNameToJsonschemaRef: (name) => {
-    return `/${name}`
+    return s
   }
 
 };
