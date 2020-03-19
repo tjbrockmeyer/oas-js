@@ -75,7 +75,6 @@ class OpenAPI {
           }
         } else if(typeof v === 'function') {
           const s = v.call(result, instance, schema, options, ctx);
-          console.log(v, s)
           if(s !== undefined) {
             result.addError(s)
           }
@@ -92,7 +91,6 @@ class OpenAPI {
     Object.getOwnPropertyNames(schemas).forEach(n => {
       this.doc.components.schemas[n] = utils.toOasSchema(schemas[n], this)
       this._validator.addSchema(utils.toJsonschema(schemas[n], this), `/${n}`);
-      console.log(utils.toJsonschema(schemas[n], this))
     });
   }
 

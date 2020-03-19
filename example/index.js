@@ -7,14 +7,14 @@ function bananaValidation(instance, schema, options, ctx) {
 }
 
 const schemas = {
-  Apple: {type: 'object', properties: {abc: {type: 'integer'}}, additionalProperties: false},
+  Apple: {type: 'object', required: ['abc'], properties: {abc: {type: 'integer'}}},
   Banana: {
     type: 'object',
     properties: {def: {type: 'string'}},
     'x-validator': bananaValidation,
     additionalProperties: false
   },
-  Carrot: {type: 'object', properties: {ghi: {type: 'boolean'}}, 'x-validator': 'carrotValidation'},
+  Carrot: {type: 'object', required: ['ghi'], properties: {ghi: {type: 'boolean'}}, 'x-validator': 'carrotValidation'},
   Date: {
     allOf: [
       ref('Apple'),

@@ -138,7 +138,7 @@ function forAllRecursiveKeys(o, func) {
  */
 function schemaRefReplace(schema, replaceFunc) {
   const funcs = []
-  function replacer(key, value) {
+  const replacer = (key, value) => {
     if(key === '$ref') {
       if(typeof value === 'object') {
         if(!this._schemaObjectsToNames.has(value)) {
@@ -158,7 +158,7 @@ function schemaRefReplace(schema, replaceFunc) {
     }
     return value
   }
-  function reviver(key, value) {
+  const reviver = (key, value) => {
     if(typeof value === 'string' && value.startsWith('x-oas-function: ')) {
       return funcs[parseInt(value.substring(16))]
     }
