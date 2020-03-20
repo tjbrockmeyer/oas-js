@@ -31,7 +31,7 @@ class Endpoint {
     /** @type {string} */
     this.method = method.toLowerCase();
     /** @type {function(data:oas.Data):*} */
-    this.userDefinedFunc = data => {
+    this.func = data => {
       throw new Error(`endpoint function is not defined for ${data.endpoint.doc.operationId}`);
     };
 
@@ -49,8 +49,6 @@ class Endpoint {
     this._params = [];
     /** @private */
     this._headers = [];
-    /** @private */
-    this._fullyWrappedFunc = data => this.userDefinedFunc(data);
 
     if(spec.endpoints[operationId] !== undefined) {
       throw new Error(`duplicate endpoint definition for operationId: ${operationId}`);
@@ -236,7 +234,7 @@ class Endpoint {
     }
     pathItem[this.method] = this.doc;
 
-    this.userDefinedFunc = func;
+    this.func = func;
     this.spec.routeCreator(this, this.call.bind(this))
     return this;
   }
@@ -253,7 +251,7 @@ class Endpoint {
 
     try {
       this.parseRequest(data);
-      const output = await this._fullyWrappedFunc(data);
+      const output = await this.func(data);
       if(output instanceof utils.Response) {
         response = output;
       } else {
