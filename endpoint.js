@@ -15,6 +15,10 @@ class Endpoint {
    * @param tags {string[]}
    */
   constructor(spec, operationId, method, path, summary, description, tags) {
+
+    /**
+     * The documentation for this Operation, in Open API 3 formats
+     */
     this.doc = {
       operationId,
       tags,
@@ -24,13 +28,29 @@ class Endpoint {
       responses: {},
       security: [],
     };
-    /** @type {oas.OpenAPI} */
+
+    /**
+     * The spec where this endpoint was defined
+     * @type {oas.OpenAPI}
+     */
     this.spec = spec;
-    /** @type {string} */
+
+    /**
+     * The url path to reach this endpoint
+     * @type {string}
+     */
     this.path = path;
-    /** @type {string} */
+
+    /**
+     * The http method of this endpoint
+     * @type {string}
+     */
     this.method = method.toLowerCase();
-    /** @type {function(data:oas.Data):*} */
+
+    /**
+     * The function which was added when calling endpoint.define(func)
+     * @type {function(data:oas.Data):*}
+     */
     this.func = data => {
       throw new Error(`endpoint function is not defined for ${data.endpoint.doc.operationId}`);
     };

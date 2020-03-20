@@ -19,6 +19,10 @@ class OpenAPI {
    * @param routeCreator {function(oas.Endpoint, function(e.Request, e.Response))}
    */
   constructor(title, description, serverUrl, version, schemas, tags, routeCreator) {
+
+    /**
+     * The documentation for this API, in Open API 3 format.
+     */
     this.doc = {
       openapi: '3.0.0',
       info: {
@@ -36,11 +40,21 @@ class OpenAPI {
         schemas: {}
       }
     };
-    /** @type {Object.<string,oas.Endpoint>} */
+
+    /**
+     * All defined endpoints, mapped from their operation IDs
+     * @type {Object.<string,oas.Endpoint>}
+     */
     this.endpoints = {};
-    /** @type {function(oas.Endpoint, function(e.Request, e.Response))} */
+
+    /**
+     * The route creator will add new routes into the router when new endpoints are added to this api
+     * @type {function(oas.Endpoint, function(e.Request, e.Response))}
+     */
     this.routeCreator = routeCreator
-    /** @type {
+    /**
+     * Mapping of names to functions which are available for use in schemas which define string values for the 'x-validator' key.
+     * @type {
      *  Object.<string,function(
      *    this:ValidatorResult,
      *    instance:*,
