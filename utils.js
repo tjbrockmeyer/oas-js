@@ -245,6 +245,10 @@ module.exports = {
           o.properties = Object.assign(o.properties || {}, o[k])
           delete o[k]
           break;
+        case 'const':
+          o.enum = [o[k]]
+          delete o[k]
+          break;
         case 'x-nullable':
           o.description = (o.description ? o.description + ' - ' : '') + '(nullable)'
           o.allOf = [
