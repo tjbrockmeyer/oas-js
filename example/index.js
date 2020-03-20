@@ -48,7 +48,7 @@ const schemas = {
 };
 
 /** @param api {oas.OpenAPI} */
-function customValidation(api) {
+function addCustomValidationFunc(api) {
   api.validatorFuncs.carrotValidation = function() {
     this.addError('failed carrot validation')
   }
@@ -138,7 +138,8 @@ function createApi(routeCreator, port) {
       console.log(JSON.stringify(data.body, undefined, 2))
     })
 
-  customValidation(o)
+  addCustomValidationFunc(o)
+  console.log('validateSpec:', o.validateSpec())
   return o
 }
 

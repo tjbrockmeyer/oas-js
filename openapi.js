@@ -41,15 +41,12 @@ class OpenAPI {
     /** @type {function(oas.Endpoint, function(e.Request, e.Response))} */
     this.routeCreator = routeCreator
     /** @type {
-     *  Object.<
-     *    string,
-     *    function(
-     *      this:ValidatorResult,
-     *      instance:*,
-     *      schema:Schema,
-     *      options:Options,
-     *      ctx:SchemaContext
-     *    )
+     *  Object.<string,function(
+     *    this:ValidatorResult,
+     *    instance:*,
+     *    schema:Schema,
+     *    options:Options,
+     *    ctx:SchemaContext)
      *  >}
      */
     this.validatorFuncs = {}
@@ -92,6 +89,7 @@ class OpenAPI {
       this.doc.components.schemas[n] = utils.toOasSchema(schemas[n], this)
       this._validator.addSchema(utils.toJsonschema(schemas[n], this), `/${n}`);
     });
+
   }
 
   /**
@@ -142,14 +140,33 @@ class OpenAPI {
   }
 
   /**
-   * Validate this spec.
-   * Throws an error if invalid.
+   * Validate that this spec is compliant with the Open API specification schema.
+   * Validate that all references to components in the spec are referencing defined components.
+   * @returns {{valid:boolean,missingRefs:string[],errors:string[]}} - Returns true if valid, false otherwise.
    */
   validateSpec() {
+    const missingRefs = []
+    const errors = []
+
+    const definedRefs = {}
+    Object.getOwnPropertyNames(this.doc.components).forEach(cn =>
+      Object.getOwnPropertyNames(this.doc.components[cn]).forEach(n => definedRefs[`#/components/${cn}/${n}`] = n))
+    JSON.stringify(this.doc, function(key, value) {
+      if(key === '$ref' && value.startsWith('#/components/') && definedRefs[value] === undefined) {
+        missingRefs.push(value)
+      }
+      return value
+    })
+
     const result = jsonschema.validate(this.doc, require('./openapi-3_0_0-schema'));
     if(!result.valid) {
-      result.errors.forEach(e => console.error('  ' + e.toString()));
-      throw new Error('Specification failed OpenAPI 3.0.0 validation. See logs for errors.');
+      errors.push(...result.errors.map(e => e.toString()));
+    }
+
+    return {
+      valid: (missingRefs.length === 0 && errors.length === 0),
+      missingRefs,
+      errors
     }
   }
 }
