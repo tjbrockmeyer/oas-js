@@ -52,7 +52,17 @@ class OpenAPI {
      * @type {function(oas.Endpoint, function(e.Request, e.Response))}
      */
     this.routeCreator = routeCreator
+
     /**
+     * User-defined validator options.
+     * A function which will return the needed options for the jsonschema validator.
+     * Also useful for async validator dependencies, as all validations are performed synchronously.
+     * @returns {Promise<Object.<string,*>>}
+     */
+    this.validatorOptions = async () => ({})
+
+    /**
+     * User defined validator functions.
      * Mapping of names to functions which are available for use in schemas which define string values for the 'x-validator' key.
      * @type {
      *  Object.<string,function(
@@ -149,8 +159,8 @@ class OpenAPI {
    * @param schema {Object}
    * @returns {ValidatorResult}
    */
-  validate(instance, schema) {
-    return this._validator.validate(instance, schema)
+  async validate(instance, schema) {
+    return this._validator.validate(instance, schema, await this.validatorOptions())
   }
 
   /**

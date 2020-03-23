@@ -287,7 +287,7 @@ class Endpoint {
     let response;
 
     try {
-      this.parseRequest(data);
+      await this.parseRequest(data);
       const output = await this.func(data);
       if(output instanceof utils.Response) {
         response = output;
@@ -315,7 +315,7 @@ class Endpoint {
     if(!err) {
       const responseSchema = this._responseSchemas[response.status];
       if(responseSchema !== undefined) {
-        const result = this.spec.validate(response.body, responseSchema);
+        const result = await this.spec.validate(response.body, responseSchema);
         if(!result.valid) {
           err = utils.JSONValidationError.FromValidatorResult(this, 'response', result)
         }
@@ -330,7 +330,7 @@ class Endpoint {
    * @private
    * @param data {oas.Data}
    */
-  parseRequest(data) {
+  async parseRequest(data) {
     try {
       this._query.forEach(p => data.query[p.doc.name] = utils.convertParamType(p, data.req.query[p.doc.name]));
       this._params.forEach(p => data.params[p.doc.name] = utils.convertParamType(p, data.req.params[p.doc.name]));
@@ -342,7 +342,7 @@ class Endpoint {
       throw utils.JSONValidationError.FromParameterType(this, param, item);
     }
 
-    const result = this.spec.validate(data.asInstance(), this._dataSchema);
+    const result = await this.spec.validate(data.asInstance(), this._dataSchema);
     if(!result.valid) {
       throw utils.JSONValidationError.FromValidatorResult(this, 'request', result);
     }
