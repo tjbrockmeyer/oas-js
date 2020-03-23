@@ -315,7 +315,7 @@ class Endpoint {
     if(!err) {
       const responseSchema = this._responseSchemas[response.status];
       if(responseSchema !== undefined) {
-        const result = await this.spec.validate(response.body, responseSchema);
+        const result = await this.spec.validate(response.body, responseSchema, await this.spec.validatorOptions(this));
         if(!result.valid) {
           err = utils.JSONValidationError.FromValidatorResult(this, 'response', result)
         }
@@ -342,7 +342,7 @@ class Endpoint {
       throw utils.JSONValidationError.FromParameterType(this, param, item);
     }
 
-    const result = await this.spec.validate(data.asInstance(), this._dataSchema);
+    const result = await this.spec.validate(data.asInstance(), this._dataSchema, await this.spec.validatorOptions(this));
     if(!result.valid) {
       throw utils.JSONValidationError.FromValidatorResult(this, 'request', result);
     }

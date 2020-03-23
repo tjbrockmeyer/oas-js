@@ -57,9 +57,9 @@ class OpenAPI {
      * User-defined validator options.
      * A function which will return the needed options for the jsonschema validator.
      * Also useful for async validator dependencies, as all validations are performed synchronously.
-     * @returns {Promise<Object.<string,*>>}
+     * @returns {Promise<Options>}
      */
-    this.validatorOptions = async () => ({})
+    this.validatorOptions = async (endpoint) => ({})
 
     /**
      * User defined validator functions.
@@ -157,10 +157,14 @@ class OpenAPI {
    * Validate an instance against a schema which references schemas inside this spec.
    * @param instance {*}
    * @param schema {Object}
+   * @param options {Options}
    * @returns {ValidatorResult}
    */
-  async validate(instance, schema) {
-    return this._validator.validate(instance, schema, await this.validatorOptions())
+  async validate(instance, schema, options) {
+    if(!options) {
+      options = await this.validatorOptions(null)
+    }
+    return this._validator.validate(instance, schema, options)
   }
 
   /**
