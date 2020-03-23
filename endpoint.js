@@ -103,7 +103,7 @@ class Endpoint {
    * @param value {*}
    * @returns {oas.Endpoint}
    */
-  option(name, value) {
+  set(name, value) {
     this.options[name] = value
     return this
   }
