@@ -48,6 +48,12 @@ class Endpoint {
     this.method = method.toLowerCase();
 
     /**
+     * User storage for arbitrary options.
+     * @type {Object.<string,*>}
+     */
+    this.options = {}
+
+    /**
      * The function which was added when calling endpoint.define(func)
      * @type {function(data:oas.Data):*}
      */
@@ -89,6 +95,17 @@ class Endpoint {
     this.doc.operationId += `_v${v}`;
     this.path = `/v${v}${this.path}`;
     return this;
+  }
+
+  /**
+   * Set an arbitrary option for this endpoint which will be stored in the options object.
+   * @param name {string}
+   * @param value {*}
+   * @returns {oas.Endpoint}
+   */
+  option(name, value) {
+    this.options[name] = value
+    return this
   }
 
   /**
