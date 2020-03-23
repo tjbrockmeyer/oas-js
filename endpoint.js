@@ -315,9 +315,13 @@ class Endpoint {
     if(!err) {
       const responseSchema = this._responseSchemas[response.status];
       if(responseSchema !== undefined) {
-        const result = await this.spec.validate(response.body, responseSchema, await this.spec.validatorOptions(this));
-        if(!result.valid) {
-          err = utils.JSONValidationError.FromValidatorResult(this, 'response', result)
+        try {
+          const result = await this.spec.validate(response.body, responseSchema, await this.spec.validatorOptions(this));
+          if(!result.valid) {
+            err = utils.JSONValidationError.FromValidatorResult(this, 'response', result)
+          }
+        } catch(error) {
+          err = error
         }
       }
     }
