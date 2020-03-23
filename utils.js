@@ -285,6 +285,16 @@ module.exports = {
       return true
     })
     return s
+  },
+
+  /**
+   * Attach the endpoint to the request object
+   * @param endpoint {oas.Endpoint}
+   * @returns {e.RequestHandler}
+   */
+  endpointAttachingMiddleware: (endpoint) => (req, res, next) => {
+    req.endpoint = endpoint
+    next()
   }
 
 };
