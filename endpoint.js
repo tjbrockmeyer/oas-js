@@ -298,7 +298,7 @@ class Endpoint {
       if(error instanceof utils.JSONValidationError) {
         response = new utils.Response(400, error);
       } else {
-        response = new utils.Response(500, error);
+        response = new utils.Response(500, 'internal server error');
         err = error;
       }
     }
