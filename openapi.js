@@ -87,7 +87,7 @@ class OpenAPI {
         if(typeof v === 'string') {
           if(typeof this.validatorFuncs[v] === 'function') {
             const s = this.validatorFuncs[v].call(result, instance, schema, options, ctx)
-            if(s instanceof jsonschema.ValidatorResult) {
+            if(s.errors) {
               s.errors.forEach(e => result.addError(e.message))
             } else if(s) {
               result.addError(s)
@@ -98,7 +98,7 @@ class OpenAPI {
           }
         } else if(typeof v === 'function') {
           const s = v.call(result, instance, schema, options, ctx);
-          if(s instanceof jsonschema.ValidatorResult) {
+          if(s.errors) {
             s.errors.forEach(e => result.addError(e.message))
           } else if(s) {
             result.addError(s)
