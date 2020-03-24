@@ -87,7 +87,9 @@ class OpenAPI {
         if(typeof v === 'string') {
           if(typeof this.validatorFuncs[v] === 'function') {
             const s = this.validatorFuncs[v].call(result, instance, schema, options, ctx)
-            if(s !== undefined) {
+            if(s instanceof jsonschema.ValidatorResult) {
+              s.errors.forEach(e => result.addError(e.message))
+            } else if(s) {
               result.addError(s)
             }
           } else {
@@ -96,7 +98,9 @@ class OpenAPI {
           }
         } else if(typeof v === 'function') {
           const s = v.call(result, instance, schema, options, ctx);
-          if(s !== undefined) {
+          if(s instanceof jsonschema.ValidatorResult) {
+            s.errors.forEach(e => result.addError(e.message))
+          } else if(s) {
             result.addError(s)
           }
         } else if(typeof v !== 'undefined') {

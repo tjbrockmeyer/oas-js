@@ -339,7 +339,7 @@ class Endpoint {
       this._query.forEach(p => data.query[p.doc.name] = utils.convertParamType(p, data.req.query[p.doc.name]));
       this._params.forEach(p => data.params[p.doc.name] = utils.convertParamType(p, data.req.params[p.doc.name]));
       this._headers.forEach(p => data.headers[p.doc.name] = utils.convertParamType(p, data.req.get(p.doc.name)));
-      if(this._bodyJsonschema !== null) {
+      if(this.doc.requestBody !== null) {
         data.body = data.req.body;
       }
     } catch({param, item}) {
