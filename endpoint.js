@@ -291,6 +291,7 @@ class Endpoint {
     req['oasData'] = data
 
     const _status = res.status.bind(res)
+    const _sendStatus = res.sendStatus.bind(res)
     const _set = res.set.bind(res)
     const _json = res.json.bind(res)
     res.status = status => {
@@ -299,6 +300,13 @@ class Endpoint {
       }
       data.response.status = status
       return _status(status)
+    }
+    res.sendStatus = code => {
+      if(res.writableEnded) {
+        return res
+      }
+      data.response.status = code
+      return _sendStatus(code)
     }
     res.set = (keyOrObj, ...values) => {
       if(res.writableEnded) {
