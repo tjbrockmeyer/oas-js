@@ -306,18 +306,24 @@ class Endpoint {
         return res
       }
       data.response.status = code
+      data.response.body = res.statusMessage
       return _sendStatus(code)
     }
-    res.set = (keyOrObj, ...values) => {
+    res.set = (field, val=undefined) => {
       if(res.writableEnded) {
         return res
       }
-      if(typeof keyOrObj === 'object') {
-        data.response.headers = keyOrObj
+      let value
+      if(val !== undefined) {
+        value = Array.isArray(val)
+          ? val.map(String)
+          : String(val);
+        data.response.headers[field] = value
+        return _set.call(res, field, value)
       } else {
-        data.response.headers[keyOrObj] = values
+        data.response.headers = Object.assign({}, field)
+        return _set.call(res, field)
       }
-      return _set.call(res, keyOrObj, ...values)
     }
     res.json = json => {
       if(res.writableEnded) {
@@ -353,10 +359,10 @@ class Endpoint {
     try {
       const result = await this.spec.validate(data.asInstance(), this._dataSchema, await this.spec.validatorOptions(this));
       if(!result.valid) {
-        next(utils.JSONValidationError.FromValidatorResult(this, 'request', result))
+        return next(utils.JSONValidationError.FromValidatorResult(this, 'request', result))
       }
     } catch(error) {
-      next(error)
+      return next(error)
     }
     next()
   }
@@ -379,7 +385,7 @@ class Endpoint {
         data.response.body = output;
       }
     } catch(error) {
-      next(error)
+      return next(error)
     }
 
     const {response: {ignore, status, headers, body}} = data
@@ -387,7 +393,7 @@ class Endpoint {
       try {
         res.status(status).set(headers).send(body).end()
       } catch(error) {
-        next(error)
+        return next(error)
       }
     }
     next()
@@ -408,10 +414,10 @@ class Endpoint {
       try {
         const result = await this.spec.validate(response.body, responseSchema, await this.spec.validatorOptions(this));
         if(!result.valid) {
-          next(utils.JSONValidationError.FromValidatorResult(this, 'response', result))
+          return next(utils.JSONValidationError.FromValidatorResult(this, 'response', result))
         }
       } catch(error) {
-        next(error)
+        return next(error)
       }
     }
     next()
