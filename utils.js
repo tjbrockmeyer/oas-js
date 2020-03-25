@@ -25,6 +25,8 @@ class Data {
     this.headers = {};
     /** @type {*} */
     this.body = undefined;
+    /** @type {oas.Response} */
+    this.response = new Response(200)
   }
 
   asInstance() {
@@ -82,6 +84,13 @@ class JSONValidationError extends Error {
     this.in = loc;
     this.errors = errors;
     this.instance = instance;
+
+    if(this.errors.length > 10) {
+      this.errors = [...this.errors.slice(10), `\t+ ${this.errors.length - 10} more errors...`]
+    }
+    if(JSON.stringify(instance).length > 1000) {
+      this.instance = '[instance too large to show]'
+    }
   }
 
   /**
@@ -286,15 +295,5 @@ module.exports = {
     })
     return s
   },
-
-  /**
-   * Attach the endpoint to the request object
-   * @param endpoint {oas.Endpoint}
-   * @returns {e.RequestHandler}
-   */
-  endpointAttachingMiddleware: (endpoint) => (req, res, next) => {
-    req.endpoint = endpoint
-    next()
-  }
 
 };

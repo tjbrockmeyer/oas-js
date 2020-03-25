@@ -16,7 +16,7 @@ class OpenAPI {
    * @param version {string} - A version in the following format: major.minor.patch
    * @param schemas {Object<string,Object>}
    * @param tags {{name:string,description:string}[]}
-   * @param routeCreator {function(oas.Endpoint, function(e.Request, e.Response))}
+   * @param routeCreator {function(oas.Endpoint)}
    */
   constructor(title, description, serverUrl, version, schemas, tags, routeCreator) {
 
@@ -49,7 +49,7 @@ class OpenAPI {
 
     /**
      * The route creator will add new routes into the router when new endpoints are added to this api
-     * @type {function(oas.Endpoint, function(e.Request, e.Response))}
+     * @type {function(oas.Endpoint)}
      */
     this.routeCreator = routeCreator
 
@@ -147,18 +147,6 @@ class OpenAPI {
     router.use(swaggerUiExpress.serve)
     router.get(path, (req, res) => swaggerUiExpress.setup(
       this.doc, undefined, undefined, undefined, undefined, undefined, this.doc.info.title)(req, res))
-  }
-
-  /**
-   * Handle the sent response and any error that may have occurred.
-   * @param data {oas.Data}
-   * @param response {oas.Response}
-   * @param error {Error?}
-   */
-  responseAndErrorHandler(data, response, error) {
-    if(error) {
-      console.error(error);
-    }
   }
 
   /**

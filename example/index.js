@@ -1,5 +1,4 @@
-const {OpenAPI, Response, toExpressPath, ref, arrayOf} = require('..');
-const {JSONValidationError} = require('../utils')
+const {OpenAPI, Response, JSONValidationError, toExpressPath, ref, arrayOf} = require('..');
 const express = require('express');
 
 function bananaValidation(instance, schema, options, ctx) {
@@ -59,13 +58,51 @@ function myMiddleware(req, res, next) {
   next()
 }
 
+function errorHandlerMW(err, req, res, next) {
+  if(err instanceof JSONValidationError) {
+    err = {
+      message: [err.message, ...err.errors],
+      stack: err.stack,
+    }
+    res.status(400).json({errors: err.message})
+  } else {
+    res.status(500).json('internal server error')
+  }
+  const data = req.oasData
+  console.error({
+    operationId: data.endpoint.doc.operationId,
+    method: data.req.method,
+    url: data.req.url,
+    reqBody: data.body,
+    status: data.response.status,
+    resBody: data.response.body,
+    error: err.message,
+    stack: err.stack.split('\n'),
+  })
+  next()
+}
+
+function responseLoggerMW(req, res, next) {
+  console.log(`${req.oasData.endpoint.doc.operationId} (${req.url}): ${req.oasData.response.status}`)
+  next()
+}
+
 function main() {
   const port = 8001
   const app = express();
   app.use(express.json({strict: false}))
   app.listen(8080)
-  const routeCreator = (endpoint, handler) => {
-    app[endpoint.method](toExpressPath(endpoint.path), [myMiddleware, handler])
+  /** @param endpoint {oas.Endpoint} */
+  const routeCreator = endpoint => {
+    app[endpoint.method](toExpressPath(endpoint.path), [
+      endpoint.attachDataMW,
+      myMiddleware,
+      endpoint.requestValidationMW,
+      endpoint.call,
+      endpoint.responseValidationMW,
+      errorHandlerMW,
+      responseLoggerMW
+    ])
   }
   const o = createApi(routeCreator, port)
   o.swaggerUi(app)
@@ -82,24 +119,6 @@ function createApi(routeCreator, port) {
 
   o.responseAndErrorHandler = (data, response, error) => {
     console.log(`${data.endpoint.doc.operationId}: ${data.req.method} ${data.req.url} | ${response.status}`)
-    if(error) {
-      if(error instanceof JSONValidationError) {
-        error = {
-          message: [error.message, ...error.errors],
-          stack: error.stack,
-        }
-      }
-      console.error({
-        operationId: data.endpoint.doc.operationId,
-        method: data.req.method,
-        url: data.req.url,
-        reqBody: data.body,
-        status: response.status,
-        resBody: response.body,
-        error: error.message,
-        stack: error.stack.split('\n'),
-      })
-    }
   }
 
   o.newEndpoint('getStuff', 'GET', '/apple', 'Get some apples', 'Like, really get some apples', ['Tag1'])
@@ -135,7 +154,7 @@ function createApi(routeCreator, port) {
     .response(201, 'Created the orange')
     .response(409, 'Orange already exists')
     .define(async data => {
-      console.log(JSON.stringify(data.body, undefined, 2))
+      throw new Error(data.endpoint.doc.operationId)
     })
 
   addCustomValidationFunc(o)

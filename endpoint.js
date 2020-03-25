@@ -272,69 +272,53 @@ class Endpoint {
     pathItem[this.method] = this.doc;
 
     this.func = func;
-    this.spec.routeCreator(this, this.call.bind(this))
+    this.spec.routeCreator(this)
     return this;
   }
 
   /**
-   * Call the endpoint as if using a network call.
+   * Middleware to attach the data object to the request.
+   * After this middleware is activated, two new request keys will be available:
+   *   req.oasData - The data object for the endpoint call
+   *   req.oasResponse - Records the response by observing the actual response object
+   * This should be called before any middleware which needs to use the endpoint.
    * @param req {e.Request}
    * @param res {e.Response}
+   * @param next {e.NextFunction}
    */
-  async call(req, res) {
-    const data = new utils.Data(req, res, this);
-    let err;
-    let response;
+  attachDataMW = (req, res, next) => {
+    const data = new utils.Data(req, res, this)
+    req['oasData'] = data
 
-    try {
-      await this.parseRequest(data);
-      const output = await this.func(data);
-      if(output instanceof utils.Response) {
-        response = output;
+    const _status = res.status.bind(res)
+    const _set = res.set.bind(res)
+    const _json = res.json.bind(res)
+    res.status = status => {
+      if(res.writableEnded) {
+        return res
+      }
+      data.response.status = status
+      return _status(status)
+    }
+    res.set = (keyOrObj, ...values) => {
+      if(res.writableEnded) {
+        return res
+      }
+      if(typeof keyOrObj === 'object') {
+        data.response.headers = keyOrObj
       } else {
-        response = new utils.Response(200, output);
+        data.response.headers[keyOrObj] = values
       }
-    } catch(error) {
-      if(error instanceof utils.JSONValidationError) {
-        response = new utils.Response(400, error);
-      } else {
-        response = new utils.Response(500, 'internal server error');
-        err = error;
+      return _set.call(res, keyOrObj, ...values)
+    }
+    res.json = json => {
+      if(res.writableEnded) {
+        return res
       }
+      data.response.body = json
+      return _json(json)
     }
 
-    if(!response.ignore) {
-      try {
-        res.status(response.status).set(response.headers).json(response.body)
-      } catch(error) {
-        console.error('error while sending response:', error)
-        res.status(500).json({error: 'internal server error', message: 'error while sending response'})
-      }
-    }
-
-    if(!err) {
-      const responseSchema = this._responseSchemas[response.status];
-      if(responseSchema !== undefined) {
-        try {
-          const result = await this.spec.validate(response.body, responseSchema, await this.spec.validatorOptions(this));
-          if(!result.valid) {
-            err = utils.JSONValidationError.FromValidatorResult(this, 'response', result)
-          }
-        } catch(error) {
-          err = error
-        }
-      }
-    }
-
-    this.spec.responseAndErrorHandler(data, response, err);
-  }
-
-  /**
-   * Parse the request into the data object.
-   * @private
-   * @param data {oas.Data}
-   */
-  async parseRequest(data) {
     try {
       this._query.forEach(p => data.query[p.doc.name] = utils.convertParamType(p, data.req.query[p.doc.name]));
       this._params.forEach(p => data.params[p.doc.name] = utils.convertParamType(p, data.req.params[p.doc.name]));
@@ -345,11 +329,84 @@ class Endpoint {
     } catch({param, item}) {
       throw utils.JSONValidationError.FromParameterType(this, param, item);
     }
+    next()
+  }
 
-    const result = await this.spec.validate(data.asInstance(), this._dataSchema, await this.spec.validatorOptions(this));
-    if(!result.valid) {
-      throw utils.JSONValidationError.FromValidatorResult(this, 'request', result);
+  /**
+   * Middleware to validate the request based on documentation.
+   * This should be called after the attachDataMW function.
+   * @param req {e.Request}
+   * @param res {e.Response}
+   * @param next {e.NextFunction}
+   * @returns {Promise<void>}
+   */
+  requestValidationMW = async(req, res, next) => {
+    const data = req['oasData']
+    try {
+      const result = await this.spec.validate(data.asInstance(), this._dataSchema, await this.spec.validatorOptions(this));
+      if(!result.valid) {
+        next(utils.JSONValidationError.FromValidatorResult(this, 'request', result))
+      }
+    } catch(error) {
+      next(error)
     }
+    next()
+  }
+
+  /**
+   * Call the endpoint as if using a network call.
+   * This should be called after the attachDataMW function.
+   * After calling, the response will have been sent.
+   * @param req {e.Request}
+   * @param res {e.Response}
+   * @param next {e.NextFunction}
+   */
+  call = async(req, res, next) => {
+    const data = req['oasData']
+    try {
+      const output = await this.func(data);
+      if(output instanceof utils.Response) {
+        Object.assign(data.response, output);
+      } else if(output !== undefined) {
+        data.response.body = output;
+      }
+    } catch(error) {
+      next(error)
+    }
+
+    const {response: {ignore, status, headers, body}} = data
+    if(!res.writableEnded && !ignore) {
+      try {
+        res.status(status).set(headers).send(body).end()
+      } catch(error) {
+        next(error)
+      }
+    }
+    next()
+  }
+
+  /**
+   * Validate the response body.
+   * This should be called after endpoint.call
+   * @param req {e.Request}
+   * @param res {e.Response}
+   * @param next {e.NextFunction}
+   * @returns {Promise<void>}
+   */
+  responseValidationMW = async(req, res, next) => {
+    const response = req['oasData'].response
+    const responseSchema = this._responseSchemas[response.status];
+    if(responseSchema !== undefined) {
+      try {
+        const result = await this.spec.validate(response.body, responseSchema, await this.spec.validatorOptions(this));
+        if(!result.valid) {
+          next(utils.JSONValidationError.FromValidatorResult(this, 'response', result))
+        }
+      } catch(error) {
+        next(error)
+      }
+    }
+    next()
   }
 }
 
