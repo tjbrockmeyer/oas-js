@@ -84,13 +84,6 @@ class JSONValidationError extends Error {
     this.in = loc;
     this.errors = errors;
     this.instance = instance;
-
-    if(this.errors.length > 10) {
-      this.errors = [...this.errors.slice(10), `\t+ ${this.errors.length - 10} more errors...`]
-    }
-    if(JSON.stringify(instance).length > 1000) {
-      this.instance = '[instance too large to show]'
-    }
   }
 
   /**
