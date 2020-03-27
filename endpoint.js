@@ -80,6 +80,11 @@ class Endpoint {
       throw new Error(`duplicate endpoint definition for operationId: ${operationId}`);
     }
     spec.endpoints[operationId] = this;
+
+    this.attachDataMW = this.attachDataMW.bind(this)
+    this.requestValidationMW = this.requestValidationMW.bind(this)
+    this.call = this.call.bind(this)
+    this.responseValidationMW = this.responseValidationMW.bind(this)
   }
 
   /**
@@ -286,7 +291,7 @@ class Endpoint {
    * @param res {e.Response}
    * @param next {e.NextFunction}
    */
-  attachDataMW = (req, res, next) => {
+  attachDataMW(req, res, next) {
     const data = new utils.Data(req, res, this)
     req['oasData'] = data
 
@@ -354,7 +359,7 @@ class Endpoint {
    * @param next {e.NextFunction}
    * @returns {Promise<void>}
    */
-  requestValidationMW = async(req, res, next) => {
+  async requestValidationMW(req, res, next) {
     const data = req['oasData']
     try {
       const result = await this.spec.validate(data.asInstance(), this._dataSchema, await this.spec.validatorOptions(this));
@@ -375,7 +380,7 @@ class Endpoint {
    * @param res {e.Response}
    * @param next {e.NextFunction}
    */
-  call = async(req, res, next) => {
+  async call(req, res, next) {
     const data = req['oasData']
     try {
       const output = await this.func(data);
@@ -407,7 +412,7 @@ class Endpoint {
    * @param next {e.NextFunction}
    * @returns {Promise<void>}
    */
-  responseValidationMW = async(req, res, next) => {
+  async responseValidationMW(req, res, next) {
     const response = req['oasData'].response
     const responseSchema = this._responseSchemas[response.status];
     if(responseSchema !== undefined) {
