@@ -104,14 +104,16 @@ function main() {
       responseLoggerMW
     ])
   }
-  const o = createApi(routeCreator, port)
+  const serverPath = `http://localhost:${port}`
+  const o = createApi(routeCreator, serverPath)
+  o.hostDocs(app)
   o.swaggerUi(app)
-  app.listen(port, () => console.log(`listening at http://localhost:${port}/docs`));
+  app.listen(port, () => console.log(`listening at http://localhost:${port}/docs/`));
 }
 
-function createApi(routeCreator, port) {
+function createApi(routeCreator, serverPath) {
   const o = new OpenAPI(
-    'My API', 'Holds endpoints that do stuff for me', `http://localhost:${port}`, '1.0.0', schemas,
+    'My API', 'Holds endpoints that do stuff for me', serverPath, '1.0.0', schemas,
     [
       {name: 'Tag1', description: 'This is the first tag'},
       {name: 'Tag2', description: 'This is the second tag'},

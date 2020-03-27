@@ -139,14 +139,23 @@ class OpenAPI {
   }
 
   /**
+   * Mount the documentation at the provided url.
+   * @param router {e.Router}
+   * @param path {string?}
+   */
+  hostDocs(router, path = '/docs/openapi3.json') {
+    router.get(path, (req, res) => res.json(this.doc))
+  }
+
+  /**
    * Mount the Swagger UI to the given router.
    * @param router {e.Router}
    * @param path {string?}
    */
-  swaggerUi(router, path = '/docs') {
-    router.use(swaggerUiExpress.serve)
-    router.get(path, (req, res) => swaggerUiExpress.setup(
-      this.doc, undefined, undefined, undefined, undefined, undefined, this.doc.info.title)(req, res))
+  swaggerUi(router, path = '/docs/') {
+    router.use(path,
+      swaggerUiExpress.serve,
+      swaggerUiExpress.setup(this.doc, undefined, undefined, undefined, undefined, undefined, this.doc.info.title))
   }
 
   /**

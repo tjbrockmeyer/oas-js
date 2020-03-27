@@ -180,7 +180,7 @@ module.exports = {
    * @returns {string}
    */
   toExpressPath(path) {
-    return path.replace(/{.+?}/, s => `:${s.slice(1, s.length - 1)}`)
+    return path.replace(/{.*?[^\\]}/, s => `:${s.slice(1, s.length - 1)}`)
   },
 
   /**
