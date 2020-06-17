@@ -17,11 +17,11 @@ class Data {
     this.res = res;
     /** @type {oas.Endpoint} */
     this.endpoint = endpoint;
-    /** @type {Object} */
+    /** @type {Object.<string,*>} */
     this.query = {};
-    /** @type {Object} */
+    /** @type {Object.<string,*>} */
     this.params = {};
-    /** @type {Object} */
+    /** @type {Object.<string,*>} */
     this.headers = {};
     /** @type {*} */
     this.body = undefined;
@@ -57,7 +57,7 @@ class Response {
     this.status = status;
     /** @type {*} */
     this.body = body;
-    /** @type {Object} */
+    /** @type {Object.<string,string>} */
     this.headers = args.headers || {};
     /** @type {boolean} */
     this.ignore = args.ignore || false;
