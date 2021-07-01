@@ -1,5 +1,5 @@
 {
-  "name": "@tjbrockmeyer/oas",
+  "name": "@monsantoit/spirit-oas",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,9 +10,9 @@
     "example": "node example",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "https://github.com/tjbrockmeyer",
+  "author": "Spirit Team",
   "repository": {
-    "url": "https://github.com/tjbrockmeyer/oas-js"
+    "url": "https://github.platforms.engineering/Spirit/oas-js"
   },
   "license": "ISC",
   "dependencies": {
