@@ -51,7 +51,17 @@ class Endpoint {
      * User storage for arbitrary options.
      * @type {Object.<string,*>}
      */
-    this.options = {}
+    this.options = {};
+
+
+    /**
+     * Details regarding deprecation of this endpoint.
+     * @type {{
+     *   useInstead: string,
+     *   removalDate: Date|null
+     * } | null}
+     */
+    this.deprecationDetails = null;
 
     /**
      * The function which was added when calling endpoint.define(func)
@@ -200,13 +210,18 @@ class Endpoint {
 
   /**
    * Deprecate the endpoint.
-   * @param comment {string} - A comment about the deprecation
+   * @param useInstead {string} - An endpoint to migrate to from this one.
+   * @param removalDate {Date|null} - A date on which this endpoint will be removed from the service.
    * @returns {oas.Endpoint}
    */
-  deprecate(comment) {
+  deprecate(useInstead, removalDate = null) {
     this.doc.deprecated = true;
-    if(comment !== undefined) {
-      this.doc.description += `<br/>DEPRECATED: ${comment}`
+    this.deprecationDetails = {
+      useInstead,
+      removalDate
+    };
+    if(useInstead !== undefined) {
+      this.doc.description += `<br/>DEPRECATED: please migrate to ${useInstead}<br/>Planned removal date: ${removalDate || 'TBD'}`
     }
     return this;
   }
