@@ -221,7 +221,7 @@ class Endpoint {
       removalDate
     };
     if(useInstead !== undefined) {
-      this.doc.description += `<br/>DEPRECATED: please migrate to ${useInstead}<br/>Planned removal date: ${removalDate || 'TBD'}`
+      this.doc.description += `<br/>DEPRECATED: please migrate to <code>${useInstead}</code><br/>Planned removal date: ${removalDate || 'TBD'}`;
     }
     return this;
   }
