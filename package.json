@@ -1,6 +1,6 @@
 {
   "name": "@monsantoit/spirit-oas",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "publishConfig": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "example": "node example",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo no tests available"
   },
   "author": "Spirit Team",
   "repository": {
